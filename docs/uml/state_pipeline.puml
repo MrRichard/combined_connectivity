@@ -68,6 +68,13 @@ state Analysis {
 
     fork1 --> GraphMetrics
     fork1 --> Visualization
+    fork1 --> HippocampalConnectivity
+
+    HippocampalConnectivity : Step 05b (Optional)
+    HippocampalConnectivity : Extract hippocampus mask
+    HippocampalConnectivity : Voxel-wise correlation
+    HippocampalConnectivity : Graph metrics per hemisphere
+    HippocampalConnectivity : Nodal NIfTI maps
 
     GraphMetrics : Step 06
     GraphMetrics : 27+ global metrics
@@ -82,6 +89,7 @@ state Analysis {
 
     GraphMetrics --> join1 <<join>>
     Visualization --> join1
+    HippocampalConnectivity --> join1
 
     join1 --> [*]
 }
@@ -93,6 +101,8 @@ state Completed {
     OutputsReady : Connectivity matrix
     OutputsReady : Graph metrics (JSON)
     OutputsReady : Nodal metrics (CSV)
+    OutputsReady : Hippocampal connectivity (optional)
+    OutputsReady : Hippocampal nodal NIfTIs (optional)
     OutputsReady : QC images (PNG)
     OutputsReady : HTML report
 }
@@ -112,8 +122,9 @@ end note
 
 note right of Analysis
   Parallel Execution:
-  Steps 06 & 07 can run
+  Steps 05b, 06 & 07 can run
   concurrently after Step 05
+  (05b depends on Step 03)
 end note
 
 @enduml

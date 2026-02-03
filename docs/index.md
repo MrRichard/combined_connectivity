@@ -7,6 +7,7 @@ Welcome to the Combined Connectivity documentation. This system processes functi
 | Document | Description |
 |----------|-------------|
 | [Architecture Overview](architecture.md) | System architecture with UML diagrams |
+| [Connectivity Methods](connectivity_methods.md) | Mathematical methods for ROI and voxel-level connectivity |
 | [Usage Guide](usage_guide.md) | Installation, configuration, and usage |
 | [Version Control Guide](version_control_guide.md) | Git workflow and release management |
 
@@ -51,7 +52,8 @@ combined_connectivity/
 ├── nilearn_RSB_analysis_pipeline/    # fMRI pipeline
 │   ├── configs/pipeline_config.yaml  # Master configuration
 │   └── scripts/
-│       ├── 01-07_*.py               # Processing steps
+│       ├── 01-07_*.py               # Processing steps (01-07)
+│       ├── 05b_hippocampal_*.py     # Hippocampal voxel connectivity
 │       └── submit_pipeline.py        # SLURM orchestrator
 │
 ├── mrtrix3_demon_addon/              # DWI pipeline
@@ -65,6 +67,7 @@ combined_connectivity/
 └── docs/                             # Documentation
     ├── index.md                      # This file
     ├── architecture.md               # Architecture overview
+    ├── connectivity_methods.md       # Connectivity analysis methods
     ├── usage_guide.md                # Usage instructions
     ├── version_control_guide.md      # Version control
     ├── uml/                          # PlantUML sources

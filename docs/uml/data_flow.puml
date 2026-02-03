@@ -29,6 +29,7 @@ rectangle "fMRI Pipeline" <<process>> {
 
     rectangle "Analysis" {
         hexagon "05\nConnectivity" as STEP5
+        hexagon "05b\nHippocampal\nVoxel Conn" as STEP5B
         hexagon "06\nGraph\nMetrics" as STEP6
         hexagon "07\nVisualize" as STEP7
     }
@@ -60,6 +61,8 @@ rectangle "Intermediate Data" <<data>> {
     file "Confounds\nTSV" as CONFOUNDS
     file "Denoised\nBOLD" as DENOISED
     file "ROI\nTimeseries" as TIMESERIES
+    file "Hippocampal\nMasks" as HPC_MASK
+    file "Voxel\nTimeseries" as HPC_TS
     file "Streamlines\n(TCK)" as TCK
 }
 
@@ -67,6 +70,8 @@ rectangle "Final Outputs" <<output>> {
     file "Connectivity\nMatrix (CSV)" as MATRIX
     file "Graph Metrics\n(JSON)" as METRICS
     file "Nodal Metrics\n(CSV)" as NODAL
+    file "Hippocampal\nGraph Metrics" as HPC_METRICS
+    file "Nodal NIfTI\nMaps" as HPC_NODAL
     file "QC Images\n(PNG)" as IMAGES
     file "HTML\nReport" as REPORT
 }
@@ -92,6 +97,15 @@ STEP4 --> TIMESERIES
 TIMESERIES --> STEP5
 MIO ..> STEP5
 STEP5 --> MATRIX
+
+' Hippocampal voxel connectivity branch
+DENOISED --> STEP5B
+ATLAS ..> STEP5B : hippocampus\nlabels
+STEP5B --> HPC_MASK
+HPC_MASK --> HPC_TS
+GM ..> STEP5B
+STEP5B --> HPC_METRICS
+STEP5B --> HPC_NODAL
 
 MATRIX --> STEP6
 GM ..> STEP6

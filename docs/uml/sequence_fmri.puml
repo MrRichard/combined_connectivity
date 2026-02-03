@@ -12,6 +12,7 @@ participant "02_run_fmriprep" as Step2
 participant "03_denoise_signals\n(SignalDenoiser)" as Step3
 participant "04_extract_roi_signals\n(ROIExtractor)" as Step4
 participant "05_compute_connectivity\n(ConnectivityComputer)" as Step5
+participant "05b_hippocampal_connectivity\n(HippocampalVoxelConnectivity)" as Step5b
 participant "06_graph_metrics\n(GraphAnalyzer)" as Step6
 participant "07_visualize_rois\n(ROIVisualizer)" as Step7
 database "File System" as FS
@@ -97,6 +98,43 @@ Step5 -> FS: Save companion labels file
 Step5 --> SLURM: Job complete
 deactivate Step5
 SLURM --> Orchestrator: job_id_5
+
+== Step 5b: Hippocampal Voxel Connectivity (Optional) ==
+
+alt hippocampal_connectivity.enabled = true
+    Orchestrator -> SLURM: submit_job(hippocampal_connectivity, depends=job_id_3)
+    SLURM -> Step5b: Execute
+    activate Step5b
+    Step5b -> FS: Load atlas (Brainnetome/FreeSurfer)
+    Step5b -> Step5b: create_hippocampal_masks()
+    note right of Step5b
+      Extract hippocampus labels:
+      - Brainnetome: 215-218
+      - FreeSurfer: 17, 53
+    end note
+    Step5b -> FS: Save hippocampus masks (NIfTI)
+
+    loop for each hemisphere [left, right]
+        Step5b -> FS: Load denoised BOLD
+        Step5b -> Step5b: NiftiMasker.fit_transform()
+        note right of Step5b
+          ~500-1500 voxels
+          per hemisphere
+        end note
+        Step5b -> Step5b: compute_voxel_connectivity_matrix()
+        Step5b -> Step5b: apply_fisher_z_transform()
+        Step5b -> Step5b: threshold_connectivity_matrix()
+        Step5b -> Step5b: GraphMetrics.compute_all()
+        Step5b -> FS: Save connectivity matrix
+        Step5b -> FS: Save graph metrics (JSON)
+        Step5b -> FS: Save nodal NIfTI maps
+    end
+
+    Step5b -> FS: Save summary YAML
+    Step5b --> SLURM: Job complete
+    deactivate Step5b
+    SLURM --> Orchestrator: job_id_5b
+end
 
 == Step 6: Graph Metrics ==
 

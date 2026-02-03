@@ -8,5 +8,6 @@ temp/
 mrtrix3_demon_addon/
 nilearn_RSB_analysis_pipeline/
 *.pyc
-.claude/*
+.claude/
+CLAUDE.md
 connectivity_shared/
