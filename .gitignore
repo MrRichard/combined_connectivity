@@ -1,0 +1,12 @@
+working/
+output/
+reference/
+__pycache__/
+*-tmp-*/
+temp/
+*.__pycache__
+mrtrix3_demon_addon/
+nilearn_RSB_analysis_pipeline/
+*.pyc
+.claude/*
+connectivity_shared/

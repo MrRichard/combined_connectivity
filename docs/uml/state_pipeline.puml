@@ -1,0 +1,119 @@
+@startuml state_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title fMRI Pipeline - State Machine
+
+[*] --> Initialized : load_config()
+
+state Initialized {
+    [*] --> ConfigLoaded
+    ConfigLoaded --> LoggingSetup : setup_logging()
+    LoggingSetup --> DirectoriesCreated : create_directories()
+}
+
+Initialized --> CheckingDerivatives : check_fmriprep_derivatives()
+
+state CheckingDerivatives {
+    [*] --> Checking
+    Checking --> DerivativesFound : exists
+    Checking --> NoDerivatives : not found
+}
+
+CheckingDerivatives --> Preprocessing : no derivatives
+CheckingDerivatives --> SignalProcessing : derivatives exist
+
+state Preprocessing {
+    [*] --> BIDSConversion
+    BIDSConversion : Step 01
+    BIDSConversion : DICOM → BIDS
+
+    BIDSConversion --> fMRIPrepRunning : submit to SLURM
+    fMRIPrepRunning : Step 02
+    fMRIPrepRunning : Singularity container
+    fMRIPrepRunning : Motion correction
+    fMRIPrepRunning : Spatial normalization
+
+    fMRIPrepRunning --> [*] : complete
+}
+
+Preprocessing --> SignalProcessing
+
+state SignalProcessing {
+    [*] --> Denoising
+    Denoising : Step 03
+    Denoising : Confound regression
+    Denoising : Bandpass filtering
+    Denoising : Motion scrubbing
+
+    Denoising --> ROIExtraction : denoised BOLD saved
+    ROIExtraction : Step 04
+    ROIExtraction : Atlas loading
+    ROIExtraction : Space validation
+    ROIExtraction : NiftiLabelsMasker
+
+    ROIExtraction --> [*] : timeseries saved
+}
+
+SignalProcessing --> Analysis
+
+state Analysis {
+    [*] --> ConnectivityComputation
+    ConnectivityComputation : Step 05
+    ConnectivityComputation : Pearson correlation
+    ConnectivityComputation : Fisher-z transform
+    ConnectivityComputation : Thresholding
+
+    ConnectivityComputation --> fork1 <<fork>>
+
+    fork1 --> GraphMetrics
+    fork1 --> Visualization
+
+    GraphMetrics : Step 06
+    GraphMetrics : 27+ global metrics
+    GraphMetrics : 6 nodal metrics
+    GraphMetrics : JSON/CSV output
+
+    Visualization : Step 07
+    Visualization : Atlas overlays
+    Visualization : Heatmaps
+    Visualization : Network graphs
+    Visualization : HTML report
+
+    GraphMetrics --> join1 <<join>>
+    Visualization --> join1
+
+    join1 --> [*]
+}
+
+Analysis --> Completed
+
+state Completed {
+    [*] --> OutputsReady
+    OutputsReady : Connectivity matrix
+    OutputsReady : Graph metrics (JSON)
+    OutputsReady : Nodal metrics (CSV)
+    OutputsReady : QC images (PNG)
+    OutputsReady : HTML report
+}
+
+Completed --> [*]
+
+note right of Preprocessing
+  SLURM Job Dependencies:
+  Step 02 depends on Step 01
+end note
+
+note right of SignalProcessing
+  SLURM Job Dependencies:
+  Step 03 depends on Step 02
+  Step 04 depends on Step 03
+end note
+
+note right of Analysis
+  Parallel Execution:
+  Steps 06 & 07 can run
+  concurrently after Step 05
+end note
+
+@enduml

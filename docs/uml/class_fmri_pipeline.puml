@@ -1,0 +1,134 @@
+@startuml class_fmri_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+title nilearn_RSB_analysis_pipeline - Class Diagram
+
+package "Pipeline Orchestration" {
+
+    class RSBoldPipeline {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -dry_run: bool
+        -job_ids: Dict[str, str]
+        -logger: Logger
+        +__init__(config_path, subject_id, session_id, dry_run)
+        +load_config(): dict
+        +setup_logging(): None
+        +create_directories(): None
+        +check_fmriprep_derivatives(): bool
+        +check_for_existing_recons(): Optional[FreeSurferInfo]
+        +submit_slurm_job(script, job_name, depends_on): str
+        +run_pipeline(start_step, end_step): None
+    }
+}
+
+package "Processing Steps" {
+
+    class SignalDenoiser {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -logger: Logger
+        +__init__(config, subject_id, session_id)
+        +find_fmriprep_files(): Tuple[Path, Path]
+        +load_confounds(): DataFrame
+        +select_confounds(strategy): List[str]
+        +denoise_signal(bold_img, confounds): Nifti1Image
+        +apply_bandpass_filter(img, high_pass, low_pass, tr): Nifti1Image
+        +motion_scrubbing(confounds, fd_thresh, dvars_thresh): ndarray
+        +apply_smoothing(img, fwhm): Nifti1Image
+        +run(): Path
+    }
+
+    class ROIExtractor {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -logger: Logger
+        +__init__(config, subject_id, session_id)
+        +load_atlas_with_template_matching(): Tuple[Nifti1Image, List[str]]
+        +load_schaefer_atlas(n_rois, networks): Tuple[Nifti1Image, List[str]]
+        +load_destrieux_atlas(): Tuple[Nifti1Image, List[str]]
+        +load_custom_atlas(path): Tuple[Nifti1Image, List[str]]
+        +validate_atlas_space(atlas, bold): bool
+        +resample_atlas_to_bold(atlas, bold): Nifti1Image
+        +extract_roi_timeseries(bold, atlas, labels): ndarray
+        +run(): Tuple[Path, Path]
+    }
+
+    class ConnectivityComputer {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -logger: Logger
+        +__init__(config, subject_id, session_id)
+        +load_roi_timeseries(): Tuple[ndarray, List[str]]
+        +compute_connectivity(timeseries, method): ndarray
+        +apply_fisher_z_transform(matrix): ndarray
+        +threshold_network(matrix, method, threshold): ndarray
+        +run(): Path
+    }
+
+    class GraphAnalyzer {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -graph_metrics: GraphMetrics
+        -logger: Logger
+        +__init__(config, subject_id, session_id)
+        +load_connectivity_data(): Tuple[ndarray, List[str]]
+        +compute_graph_metrics(matrix, labels): GraphMetricsResult
+        +save_results(results, output_dir): None
+        +generate_visualizations(results): List[Path]
+        +run(): Path
+    }
+
+    class ROIVisualizer {
+        -config: dict
+        -subject_id: str
+        -session_id: str
+        -qc_viz: QCVisualizer
+        -logger: Logger
+        +__init__(config, subject_id, session_id)
+        +load_atlas_and_data_with_template_validation(): Tuple[Nifti1Image, Nifti1Image, List[str]]
+        +create_atlas_overlay(): Path
+        +create_connectivity_heatmaps(): List[Path]
+        +create_summary_report(): Path
+        +run(): Path
+    }
+}
+
+package "External Dependencies" {
+    class "nilearn.connectome\nConnectivityMeasure" as CM <<external>>
+    class "nilearn.maskers\nNiftiLabelsMasker" as NLM <<external>>
+    class "nilearn.signal\nclean" as CLEAN <<external>>
+    class "connectivity_shared\nGraphMetrics" as GM <<external>>
+    class "connectivity_shared\nQCVisualizer" as QCV <<external>>
+    class "connectivity_shared\nFreeSurferDetector" as FSD <<external>>
+}
+
+' Relationships
+RSBoldPipeline "1" *-- "1" SignalDenoiser : spawns
+RSBoldPipeline "1" *-- "1" ROIExtractor : spawns
+RSBoldPipeline "1" *-- "1" ConnectivityComputer : spawns
+RSBoldPipeline "1" *-- "1" GraphAnalyzer : spawns
+RSBoldPipeline "1" *-- "1" ROIVisualizer : spawns
+
+RSBoldPipeline ..> FSD : uses
+
+SignalDenoiser ..> CLEAN : uses
+ROIExtractor ..> NLM : uses
+ConnectivityComputer ..> CM : uses
+GraphAnalyzer o-- GM : has
+ROIVisualizer o-- QCV : has
+
+' Step dependencies (data flow)
+SignalDenoiser ..> ROIExtractor : output feeds
+ROIExtractor ..> ConnectivityComputer : output feeds
+ConnectivityComputer ..> GraphAnalyzer : output feeds
+ConnectivityComputer ..> ROIVisualizer : output feeds
+
+@enduml

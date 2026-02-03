@@ -1,0 +1,113 @@
+@startuml architecture
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title Combined Connectivity - System Architecture
+
+package "User Interface" {
+    [CLI Scripts] as CLI
+    [SLURM Jobs] as SLURM
+    [Configuration\n(YAML)] as CONFIG
+}
+
+package "connectivity_shared" <<Framework>> {
+    [GraphMetrics] as GM
+    [MatrixIO] as MIO
+    [FreeSurferDetector] as FSD
+    [AtlasLabels] as AL
+    [QCVisualization] as QCV
+    [HTMLReportGenerator] as HRG
+}
+
+package "nilearn_RSB_analysis_pipeline" <<Application>> {
+    [01_validate_and_convert] as STEP1
+    [02_run_fmriprep] as STEP2
+    [03_denoise_signals] as STEP3
+    [04_extract_roi_signals] as STEP4
+    [05_compute_connectivity] as STEP5
+    [06_graph_metrics] as STEP6
+    [07_visualize_rois] as STEP7
+    [submit_pipeline] as ORCHESTRATOR
+}
+
+package "mrtrix3_demon_addon" <<Application>> {
+    [run_pipeline] as DWI_MAIN
+    [ImageTypeChecker] as ITC
+    [Connectome] as CONN
+    [SlurmBatch] as SB
+}
+
+package "External Tools" {
+    [fMRIPrep] as FMRIPREP
+    [MRtrix3] as MRTRIX
+    [FreeSurfer] as FS
+    [nilearn] as NILEARN
+    [NetworkX] as NX
+}
+
+package "Data Storage" {
+    database "Raw DICOM" as RAW
+    database "BIDS Data" as BIDS
+    database "Derivatives" as DERIV
+    database "Outputs\n(Matrices/Metrics)" as OUT
+}
+
+' User interface connections
+CLI --> ORCHESTRATOR
+CLI --> DWI_MAIN
+CONFIG --> ORCHESTRATOR
+CONFIG --> DWI_MAIN
+SLURM <-- ORCHESTRATOR
+SLURM <-- DWI_MAIN
+
+' fMRI Pipeline flow
+ORCHESTRATOR --> STEP1
+ORCHESTRATOR --> STEP2
+ORCHESTRATOR --> STEP3
+ORCHESTRATOR --> STEP4
+ORCHESTRATOR --> STEP5
+ORCHESTRATOR --> STEP6
+ORCHESTRATOR --> STEP7
+
+' Shared library usage
+STEP4 ..> FSD : uses
+STEP4 ..> AL : uses
+STEP5 ..> MIO : uses
+STEP6 ..> GM : uses
+STEP6 ..> MIO : uses
+STEP7 ..> QCV : uses
+STEP7 ..> HRG : uses
+
+' DWI Pipeline
+DWI_MAIN --> ITC
+DWI_MAIN --> CONN
+DWI_MAIN --> SB
+CONN ..> GM : uses
+CONN ..> MIO : uses
+
+' External tool dependencies
+STEP2 --> FMRIPREP
+STEP3 --> NILEARN
+STEP4 --> NILEARN
+STEP5 --> NILEARN
+GM --> NX
+DWI_MAIN --> MRTRIX
+FSD --> FS
+
+' Data flow
+RAW --> STEP1
+STEP1 --> BIDS
+BIDS --> STEP2
+STEP2 --> DERIV
+DERIV --> STEP3
+STEP3 --> STEP4
+STEP4 --> STEP5
+STEP5 --> OUT
+STEP6 --> OUT
+STEP7 --> OUT
+
+RAW --> ITC
+DWI_MAIN --> OUT
+
+@enduml

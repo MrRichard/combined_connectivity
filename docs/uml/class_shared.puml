@@ -1,0 +1,123 @@
+@startuml class_shared
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+title connectivity_shared Package - Class Diagram
+
+package "connectivity_shared" {
+
+    class GraphMetrics {
+        -n_random_networks: int
+        -seed: Optional[int]
+        -_rng: np.random.Generator
+        +__init__(n_random_networks, seed)
+        +compute_all(matrix, labels, modality, atlas, subject_id, session_id): GraphMetricsResult
+        -_basic_metrics(G, matrix): dict
+        -_clustering_metrics(G, matrix): dict
+        -_efficiency_metrics(G): dict
+        -_small_world_metrics(G, matrix): dict
+        -_topology_metrics(G, matrix): dict
+        -_nodal_metrics(G, matrix, labels): dict
+        +nodal_metrics_to_dataframe(nodal_metrics, labels): DataFrame
+    }
+
+    class GraphMetricsResult <<dataclass>> {
+        +global_metrics: Dict[str, Union[int, float, None]]
+        +nodal_metrics: Dict[str, np.ndarray]
+        +metadata: Dict[str, Any]
+        +warnings: List[str]
+        +to_dict(): dict
+        +to_json(filepath: Path): None
+    }
+
+    class FreeSurferDetector {
+        +{static} VERSIONS: Dict[str, Dict]
+        +{static} FS_FILES: Dict[str, str]
+        +{static} ATLAS_MAPPING: Dict[str, str]
+        +detect(subject_path, subject_name, is_nhp): FreeSurferInfo
+        -_detect_by_version(subject_path, subject_name): FreeSurferInfo
+        -_detect_bids_recons(subject_path, subject_name): FreeSurferInfo
+        -_validate_and_build_info(fs_dir, version, subject_name): FreeSurferInfo
+        +get_parcellation_file(fs_info, atlas_name): Optional[Path]
+    }
+
+    class FreeSurferInfo <<dataclass>> {
+        +found: bool
+        +version: Optional[str]
+        +path: Optional[Path]
+        +available_atlases: List[str]
+        +files: Dict[str, Path]
+        +warning: Optional[str]
+    }
+
+    class HTMLReportGenerator {
+        -output_dir: Path
+        -template: str
+        +__init__(output_dir)
+        +generate_report(metrics, visualizations, output_file): Path
+        -_encode_image(image_path): str
+        -_render_metrics_table(metrics): str
+        -_generate_css(): str
+    }
+
+    class QCVisualizer {
+        -output_dir: Path
+        -dpi: int
+        +__init__(output_dir, dpi)
+        +create_atlas_overlay(underlay, atlas, output_file): Path
+        +create_connectivity_heatmap(matrix, labels, output_file): Path
+        +create_network_graph(matrix, labels, output_file, threshold): Path
+        +create_summary_figure(images, output_file): Path
+    }
+
+    class "matrix_io" <<module>> {
+        +load_connectivity_matrix(filepath, labels_file): Tuple[ndarray, List[str]]
+        +save_connectivity_matrix(matrix, labels, filepath, modality, atlas): None
+        +convert_legacy_csv(input_file, output_file, labels): None
+        +validate_matrix(matrix): Tuple[bool, List[str]]
+        +get_matrix_stats(matrix): dict
+    }
+
+    class "atlas_labels" <<module>> {
+        +{static} BRAINNETOME_LABELS: List[str]
+        +{static} FREESURFER_DK_LABELS: List[str]
+        +get_atlas_labels(atlas_name): List[str]
+        +get_atlas_info(atlas_name): dict
+        +save_labels_file(labels, filepath): None
+        +load_labels_file(filepath): List[str]
+        +verify_labels_consistency(matrix, labels): bool
+        +generate_canonical_labels_file(atlas_name, output_path): None
+    }
+
+    GraphMetrics --> GraphMetricsResult : creates
+    FreeSurferDetector --> FreeSurferInfo : creates
+    HTMLReportGenerator ..> QCVisualizer : uses outputs
+    GraphMetrics ..> "matrix_io" : uses
+    GraphMetrics ..> "atlas_labels" : uses
+}
+
+note right of GraphMetrics
+  Computes 27+ global metrics:
+  - connectivity (nodes, edges, density)
+  - clustering (binary/weighted)
+  - efficiency (global/local)
+  - small-world (sigma, omega)
+  - topology (modularity, rich-club)
+
+  Plus 6 nodal metrics per ROI
+end note
+
+note right of FreeSurferDetector
+  Supports versions:
+  - freesurfer7.x
+  - freesurfer8.0
+  - freesurfer5.3 (legacy)
+
+  Detects available atlases:
+  - aparc (DK)
+  - aparc.a2009s (Destrieux)
+  - aparc.DKTatlas
+end note
+
+@enduml

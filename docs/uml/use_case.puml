@@ -1,0 +1,89 @@
+@startuml use_case
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Combined Connectivity - Use Case Diagram
+
+left to right direction
+
+actor "Researcher" as researcher
+actor "Data Manager" as datamanager
+actor "SLURM Scheduler" as slurm <<system>>
+
+rectangle "Combined Connectivity System" {
+
+    package "fMRI Processing" {
+        usecase "Run Full fMRI Pipeline" as UC1
+        usecase "Run Individual Step" as UC2
+        usecase "Process Existing\nfMRIPrep Derivatives" as UC3
+        usecase "Configure Pipeline\n(YAML)" as UC4
+    }
+
+    package "DWI Processing" {
+        usecase "Run Full DWI Pipeline" as UC5
+        usecase "Classify Image Types" as UC6
+        usecase "Run Tractography" as UC7
+    }
+
+    package "Analysis" {
+        usecase "Compute Graph Metrics" as UC8
+        usecase "Generate QC\nVisualizations" as UC9
+        usecase "Generate HTML Report" as UC10
+        usecase "Aggregate Multi-Subject\nResults" as UC11
+    }
+
+    package "Data Management" {
+        usecase "Load/Save\nConnectivity Matrix" as UC12
+        usecase "Detect FreeSurfer\nReconstructions" as UC13
+        usecase "Validate Atlas\nConsistency" as UC14
+    }
+
+    package "Job Management" {
+        usecase "Submit SLURM Job" as UC15
+        usecase "Monitor Job Status" as UC16
+        usecase "Dry-Run Mode" as UC17
+    }
+}
+
+' Researcher associations
+researcher --> UC1
+researcher --> UC2
+researcher --> UC3
+researcher --> UC4
+researcher --> UC5
+researcher --> UC8
+researcher --> UC9
+researcher --> UC10
+researcher --> UC11
+
+' Data Manager associations
+datamanager --> UC12
+datamanager --> UC13
+datamanager --> UC14
+datamanager --> UC6
+
+' System associations
+slurm --> UC15
+slurm --> UC16
+
+' Include relationships
+UC1 ..> UC15 : <<include>>
+UC1 ..> UC13 : <<include>>
+UC5 ..> UC15 : <<include>>
+UC5 ..> UC6 : <<include>>
+
+' Extend relationships
+UC1 <.. UC17 : <<extend>>
+UC5 <.. UC17 : <<extend>>
+UC3 <.. UC1 : <<extend>>
+
+' Dependencies between use cases
+UC8 ..> UC12 : <<include>>
+UC9 ..> UC12 : <<include>>
+UC10 ..> UC9 : <<include>>
+UC11 ..> UC8 : <<include>>
+
+UC2 ..> UC4 : <<include>>
+UC7 ..> UC5 : <<include>>
+
+@enduml

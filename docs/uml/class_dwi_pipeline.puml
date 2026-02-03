@@ -1,0 +1,142 @@
+@startuml class_dwi_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+title mrtrix3_demon_addon - Class Diagram
+
+package "DWI Pipeline" {
+
+    class "run_pipeline" <<module>> {
+        +main(): None
+        +parse_args(): Namespace
+        +load_config(config_path): dict
+        +setup_logging(subject_id): Logger
+        +process_subject(subject_id, config): None
+        +run_mrtrix_command(cmd, config): int
+    }
+
+    class ImageTypeChecker {
+        -input_dir: Path
+        -output_dir: Path
+        -logger: Logger
+        +__init__(input_dir, output_dir)
+        +process_directory(): Dict[str, List[Path]]
+        +is_relevant_sequence(json_path): bool
+        +classify_image(nifti_path, json_path): str
+        +convert_dicom_to_nifti(dicom_dir, output_dir): List[Path]
+        +get_image_metadata(json_path): dict
+        +validate_dwi_data(nifti_path, bvec_path, bval_path): bool
+    }
+
+    class NetworkAnalysis {
+        -matrix: ndarray
+        -labels: List[str]
+        -graph: nx.Graph
+        +__init__()
+        +load_csv(filepath): ndarray
+        +create_adjacency_matrix(threshold): ndarray
+        +calculate_graph_metrics(): dict
+        +get_node_metrics(): DataFrame
+        +save_results(output_path): None
+    }
+
+    class SlurmBatch {
+        -job_name: str
+        -partition: str
+        -account: str
+        -cpus: int
+        -memory: str
+        -time: str
+        +__init__(job_name, config)
+        +generate_script(commands): str
+        +submit_job(script_path): str
+        +wait_for_job(job_id): int
+    }
+
+    class "connectome_aggregator" <<module>> {
+        +aggregate_subjects(subject_dirs): DataFrame
+        +compute_group_statistics(df): dict
+        +save_aggregated_results(df, output_path): None
+    }
+
+    class "generate_standardized_report" <<module>> {
+        +generate_report(subject_id, metrics, output_path): None
+        +format_metrics_json(metrics): dict
+        +create_summary_csv(subjects, output_path): None
+    }
+}
+
+package "External Dependencies" {
+    class "MRtrix3\nCommands" as MRT <<external>> {
+        dwi2response
+        dwi2fod
+        tckgen
+        tck2connectome
+        mrconvert
+        dwidenoise
+        mrdegibbs
+        dwifslpreproc
+    }
+
+    class "NetworkX" as NX <<external>>
+
+    class "connectivity_shared\nGraphMetrics" as GM <<external>>
+
+    class "connectivity_shared\nmatrix_io" as MIO <<external>>
+}
+
+package "Configuration" {
+    class "commands_ms.json" <<config>> {
+        dwi2response_params
+        dwi2fod_params
+        tckgen_params
+        tck2connectome_params
+    }
+
+    class "commands_ss.json" <<config>> {
+        single_shell_params
+    }
+}
+
+' Relationships
+"run_pipeline" --> ImageTypeChecker : uses
+"run_pipeline" --> NetworkAnalysis : uses
+"run_pipeline" --> SlurmBatch : uses
+"run_pipeline" ..> "commands_ms.json" : loads
+"run_pipeline" ..> "commands_ss.json" : loads
+
+NetworkAnalysis ..> NX : uses
+NetworkAnalysis ..> GM : delegates to
+NetworkAnalysis ..> MIO : uses
+
+"run_pipeline" --> MRT : executes
+
+"connectome_aggregator" ..> NetworkAnalysis : uses
+"generate_standardized_report" ..> NetworkAnalysis : uses
+
+note right of ImageTypeChecker
+  Classifies image types:
+  - DWI (diffusion-weighted)
+  - T1w (anatomical)
+  - T2w
+  - Fieldmaps (AP/PA)
+
+  Validates:
+  - bvec/bval files
+  - JSON metadata
+  - Shell configuration
+end note
+
+note right of NetworkAnalysis
+  Connectome Analysis:
+  - Binary thresholding
+  - Graph construction
+  - Centrality metrics
+  - Clustering analysis
+
+  Delegates advanced metrics
+  to connectivity_shared
+end note
+
+@enduml

@@ -1,0 +1,120 @@
+@startuml data_flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Combined Connectivity - Data Flow Diagram
+
+skinparam rectangle {
+    BackgroundColor<<process>> LightBlue
+    BackgroundColor<<data>> LightYellow
+    BackgroundColor<<external>> LightGray
+    BackgroundColor<<output>> LightGreen
+}
+
+rectangle "Raw Input Data" <<data>> {
+    storage "DICOM\n(Raw Scans)" as DICOM
+    file "BIDS\nDataset" as BIDS
+}
+
+rectangle "fMRI Pipeline" <<process>> {
+    rectangle "Preprocessing" {
+        hexagon "01\nValidate &\nConvert" as STEP1
+        hexagon "02\nfMRIPrep" as STEP2
+    }
+
+    rectangle "Signal Processing" {
+        hexagon "03\nDenoise" as STEP3
+        hexagon "04\nExtract\nROIs" as STEP4
+    }
+
+    rectangle "Analysis" {
+        hexagon "05\nConnectivity" as STEP5
+        hexagon "06\nGraph\nMetrics" as STEP6
+        hexagon "07\nVisualize" as STEP7
+    }
+}
+
+rectangle "DWI Pipeline" <<process>> {
+    hexagon "Image\nClassification" as DWI1
+    hexagon "Preprocessing\n(MRtrix3)" as DWI2
+    hexagon "Tractography\n(iFOD2)" as DWI3
+    hexagon "Connectome\n(tck2connectome)" as DWI4
+    hexagon "Graph\nAnalysis" as DWI5
+}
+
+rectangle "Shared Components" <<external>> {
+    component "GraphMetrics" as GM
+    component "MatrixIO" as MIO
+    component "AtlasLabels" as AL
+    component "FreeSurferDetector" as FSD
+    component "QCVisualizer" as QCV
+}
+
+rectangle "External Resources" <<external>> {
+    database "FreeSurfer\nRecons" as FS
+    database "Atlas\nTemplates" as ATLAS
+}
+
+rectangle "Intermediate Data" <<data>> {
+    file "Preprocessed\nBOLD" as PREP_BOLD
+    file "Confounds\nTSV" as CONFOUNDS
+    file "Denoised\nBOLD" as DENOISED
+    file "ROI\nTimeseries" as TIMESERIES
+    file "Streamlines\n(TCK)" as TCK
+}
+
+rectangle "Final Outputs" <<output>> {
+    file "Connectivity\nMatrix (CSV)" as MATRIX
+    file "Graph Metrics\n(JSON)" as METRICS
+    file "Nodal Metrics\n(CSV)" as NODAL
+    file "QC Images\n(PNG)" as IMAGES
+    file "HTML\nReport" as REPORT
+}
+
+' fMRI data flow
+DICOM --> STEP1
+STEP1 --> BIDS
+BIDS --> STEP2
+FS ..> STEP2 : optional\nFreeSurfer
+STEP2 --> PREP_BOLD
+STEP2 --> CONFOUNDS
+
+PREP_BOLD --> STEP3
+CONFOUNDS --> STEP3
+STEP3 --> DENOISED
+
+DENOISED --> STEP4
+ATLAS ..> STEP4
+FSD ..> STEP4 : atlas\ndetection
+AL ..> STEP4 : labels
+STEP4 --> TIMESERIES
+
+TIMESERIES --> STEP5
+MIO ..> STEP5
+STEP5 --> MATRIX
+
+MATRIX --> STEP6
+GM ..> STEP6
+STEP6 --> METRICS
+STEP6 --> NODAL
+
+MATRIX --> STEP7
+QCV ..> STEP7
+STEP7 --> IMAGES
+STEP7 --> REPORT
+
+' DWI data flow
+DICOM --> DWI1
+DWI1 --> DWI2
+DWI2 --> DWI3
+ATLAS ..> DWI3
+DWI3 --> TCK
+TCK --> DWI4
+DWI4 --> MATRIX
+MATRIX --> DWI5
+GM ..> DWI5
+MIO ..> DWI5
+DWI5 --> METRICS
+DWI5 --> NODAL
+
+@enduml
