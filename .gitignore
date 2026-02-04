@@ -10,4 +10,4 @@ nilearn_RSB_analysis_pipeline/
 *.pyc
 .claude/
 CLAUDE.md
-connectivity_shared/
+*.egg-info
