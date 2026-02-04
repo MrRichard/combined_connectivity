@@ -35,8 +35,6 @@ dependencies = [
     "seaborn>=0.11.0",
     "pyyaml>=5.4.0",
     "packaging",
-    "mrtrix3-demon-addon @ git+https://github.com/MrRichard/mrtrix3_demon_addon.git",
-    "nilearn-rsb-analysis-pipeline @ git+https://github.com/MrRichard/nilearn_RSB_analysis_pipeline.git",
 ]
 
 [project.optional-dependencies]

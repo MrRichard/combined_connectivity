@@ -36,6 +36,8 @@ from .html_report import (
     HTMLReportGenerator,
     generate_connectivity_report,
 )
+from .dicom_to_bids import DicomToBIDS, BIDSConversionResult
+from .brain_extraction import BrainExtractor, BrainExtractionResult
 
 # QC visualization (optional - requires matplotlib)
 try:
@@ -77,4 +79,10 @@ __all__ = [
     "QCVisualizer",
     "create_registration_check",
     "QC_VIZ_AVAILABLE",
+    # DICOM-to-BIDS
+    "DicomToBIDS",
+    "BIDSConversionResult",
+    # Brain Extraction
+    "BrainExtractor",
+    "BrainExtractionResult",
 ]

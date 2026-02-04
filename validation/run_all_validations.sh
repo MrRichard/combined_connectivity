@@ -60,6 +60,18 @@ echo "----------------------------------------------"
 python "$SCRIPT_DIR/test_html_report.py"
 
 echo ""
+echo "----------------------------------------------"
+echo "Test 7: DICOM-to-BIDS Conversion"
+echo "----------------------------------------------"
+python "$SCRIPT_DIR/test_dicom_to_bids.py"
+
+echo ""
+echo "----------------------------------------------"
+echo "Test 8: Brain Extraction"
+echo "----------------------------------------------"
+python "$SCRIPT_DIR/test_brain_extraction.py"
+
+echo ""
 echo "=============================================="
 echo "ALL VALIDATIONS COMPLETE"
 echo "=============================================="
