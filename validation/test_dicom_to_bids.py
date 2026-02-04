@@ -290,7 +290,7 @@ def test_custom_series_patterns():
         result = converter.classify_file(jp)
         _report("custom BOLD detected", result["modality"] == "func", f"got {result['modality']}")
 
-    # Original patterns should NOT match with custom config
+    # Original patterns should NOT match with custom config — returns None
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         jp = _write_sidecar(tmp, "old_pattern", {
@@ -298,7 +298,68 @@ def test_custom_series_patterns():
             "PhaseEncodingDirection": "j-",
         })
         result = converter.classify_file(jp)
-        _report("default DTI NOT matched", result["modality"] != "dwi", f"got {result['modality']}")
+        _report("default DTI returns None (skipped)", result is None, f"got {result}")
+
+
+def test_unknown_series_skipped():
+    """Perfusion, localizers, and unknown series are not placed in BIDS output."""
+    print("\n--- test_unknown_series_skipped ---")
+    converter = DicomToBIDS()
+
+    # Perfusion series — should return None
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        jp = _write_sidecar(tmp, "perfusion", {
+            "SeriesDescription": "ep2d_perf_ASL_tra",
+            "ProtocolName": "ASL_perfusion",
+        })
+        result = converter.classify_file(jp)
+        _report("perfusion returns None", result is None, f"got {result}")
+
+    # Localizer — should return None
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        jp = _write_sidecar(tmp, "localizer", {
+            "SeriesDescription": "localizer_3plane",
+        })
+        result = converter.classify_file(jp)
+        _report("localizer returns None", result is None, f"got {result}")
+
+    # Verify unknown files don't end up in BIDS directory structure
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        src = tmp / "src"
+        src.mkdir()
+        out = tmp / "bids"
+
+        # One known file (T1w) and two unknown files
+        _write_sidecar(src, "t1", {"SeriesDescription": "MPRAGE_sag"})
+        _write_sidecar(src, "perfusion", {
+            "SeriesDescription": "ep2d_perf_ASL_tra",
+        })
+        _write_sidecar(src, "localizer", {
+            "SeriesDescription": "localizer_3plane",
+        })
+
+        json_files = sorted(src.glob("*.json"))
+        classified = []
+        for jp in json_files:
+            info = converter.classify_file(jp)
+            if info is None:
+                continue
+            info["json_path"] = jp
+            info["nii_path"] = converter._find_nifti_for_json(jp)
+            classified.append(info)
+
+        bids_files = converter._organize_bids(classified, out, "01", "1")
+
+        # Only the T1w should be in the output
+        all_files = []
+        for paths in bids_files.values():
+            all_files.extend(paths)
+        _report("only 1 file in BIDS output", len(all_files) == 1, f"got {len(all_files)}")
+        _report("that file is anat", "anat" in bids_files, f"got modalities {list(bids_files.keys())}")
+        _report("no perfusion dir", not (out / "sub-01" / "ses-1" / "perf").exists())
 
 
 def main():
@@ -318,6 +379,7 @@ def main():
     test_dataset_description()
     test_intended_for_metadata()
     test_custom_series_patterns()
+    test_unknown_series_skipped()
 
     print("\n" + "=" * 50)
     print(f"RESULTS: {passed}/{total} passed, {failed} failed")

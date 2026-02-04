@@ -108,6 +108,9 @@ class DicomToBIDS:
         for jp in json_paths:
             try:
                 info = self.classify_file(jp)
+                if info is None:
+                    warnings.append(f"Skipped unrecognised series: {jp.name}")
+                    continue
                 info["json_path"] = jp
                 # Locate the corresponding NIfTI
                 nii_path = self._find_nifti_for_json(jp)
@@ -152,10 +155,12 @@ class DicomToBIDS:
             warnings=warnings,
         )
 
-    def classify_file(self, json_sidecar: Path) -> dict:
+    def classify_file(self, json_sidecar: Path) -> Optional[dict]:
         """Classify a single NIfTI by its JSON sidecar.
 
-        Returns a dict with keys:
+        Returns a dict with keys, or *None* if the series is unrecognised
+        (e.g. perfusion, localizers, derived sequences):
+
             - ``modality``: ``'dwi'`` | ``'func'`` | ``'anat'`` | ``'fmap'``
             - ``suffix``: BIDS suffix (``'dwi'``, ``'bold'``, ``'sbref'``,
               ``'T1w'``, ``'T2w'``, ``'FLAIR'``, ``'epi'``, ``'phasediff'``,
@@ -272,7 +277,7 @@ class DicomToBIDS:
                 "metadata": metadata,
             }
 
-        # 7. BidsGuess fallback (from dcm2niix)
+        # 7. BidsGuess fallback (from dcm2niix) — only accept known modalities
         bids_guess = sidecar.get("BidsGuess", [])
         if bids_guess and len(bids_guess) >= 2:
             guess_modality = bids_guess[0].strip("/")
@@ -287,15 +292,12 @@ class DicomToBIDS:
                     "metadata": metadata,
                 }
 
-        # 8. Unknown — default to anat
-        return {
-            "modality": "anat",
-            "suffix": "unknown",
-            "pe_direction": pe_direction,
-            "pe_direction_raw": pe_raw,
-            "is_sbref": False,
-            "metadata": metadata,
-        }
+        # 8. Unrecognised — skip (perfusion, localizers, derived, etc.)
+        logger.info(
+            "Skipping unrecognised series: %s (SeriesDescription=%r, ProtocolName=%r)",
+            json_sidecar.name, series_desc, protocol_name,
+        )
+        return None
 
     # ------------------------------------------------------------------
     # Private helpers

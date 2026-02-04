@@ -19,6 +19,8 @@ Both pipelines share common utilities via the `connectivity_shared` Python packa
 combined_connectivity/
 ├── connectivity_shared/          # Shared Python package
 │   └── src/connectivity_shared/
+│       ├── dicom_to_bids.py         # DICOM → BIDS conversion
+│       ├── brain_extraction.py      # FSL BET brain mask wrapper
 │       ├── freesurfer_detector.py   # FreeSurfer detection
 │       ├── matrix_io.py             # Connectivity matrix I/O
 │       ├── graph_metrics.py         # NetworkX graph theory
@@ -28,17 +30,9 @@ combined_connectivity/
 ├── mrtrix3_demon_addon/          # Diffusion pipeline
 ├── nilearn_RSB_analysis_pipeline/ # fMRI pipeline
 ├── validation/                   # Test suite
-│   ├── test_matrix_io.py
-│   ├── test_graph_metrics.py
-│   ├── test_qc_visualization.py
-│   ├── test_atlas_labels.py
-│   ├── test_atlas_consistency.py
-│   ├── test_html_report.py
 │   └── run_all_validations.sh
 └── docs/                         # Documentation
-    ├── session_2026-01-30_initial_exploration.md
-    ├── version_control_guide.md
-    └── usage_guide.md
+    └── version_control_guide.md
 ```
 
 ## Quick Start
@@ -59,11 +53,99 @@ pip install numpy pandas scipy networkx nibabel matplotlib
 bash validation/run_all_validations.sh
 ```
 
-### 3. Choose Your Pipeline
+### 3. Convert DICOM to BIDS
+
+Both pipelines start from raw DICOM data. The shared `DicomToBIDS` converter classifies and organises your data into a standard BIDS layout, ready for either pipeline.
+
+```python
+from connectivity_shared import DicomToBIDS
+
+converter = DicomToBIDS()
+result = converter.convert(
+    dicom_dir="/path/to/raw/dicoms",
+    output_dir="/path/to/bids_output",
+    subject_id="01",
+    session_id="1",          # optional
+)
+
+print(result.modalities_found)  # e.g. ['anat', 'dwi', 'fmap', 'func']
+print(result.files)             # {modality: [bids_paths]}
+print(result.warnings)          # any issues encountered
+```
+
+The converter automatically:
+- Runs `dcm2niix` on the DICOM directory
+- Classifies each series by its JSON sidecar (DWI, BOLD, T1w, FLAIR, fieldmaps, etc.)
+- Filters out SBRef images
+- Organises files into BIDS directories with correct naming
+- Copies bvec/bval files alongside DWI data
+- Adds `IntendedFor` metadata to fieldmap sidecars
+- Writes `dataset_description.json`
+
+You can customise the series description patterns used for classification:
+
+```python
+converter = DicomToBIDS(config={
+    "series_patterns": {
+        "dwi":       ["NODDI", "DTI", "DWI", "DKI"],
+        "func":      ["BOLD", "resting", "rest", "fMRI"],
+        "anat_t1w":  ["tfl3d", "T1w", "MPRAGE"],
+        "anat_flair": ["FLAIR", "spcir"],
+        "fmap":      ["FIELD_MAP", "fieldmap", "FieldMap"],
+    }
+})
+```
+
+### 4. (Optional) Brain Extraction
+
+If you need a skull-stripped T1w before running a pipeline, the shared `BrainExtractor` wraps FSL BET:
+
+```python
+from connectivity_shared import BrainExtractor
+
+extractor = BrainExtractor(fractional_intensity=0.5)
+
+# From a BIDS dataset (auto-finds the T1w)
+result = extractor.extract_from_bids(
+    bids_dir="/path/to/bids_output",
+    subject_id="01",
+    session_id="1",
+)
+
+# Or from a specific file
+result = extractor.extract(
+    t1w_path="/path/to/sub-01_T1w.nii.gz",
+    output_dir="/path/to/output",
+)
+
+print(result.brain_path)   # skull-stripped brain
+print(result.mask_path)    # binary brain mask
+```
+
+Requires FSL to be installed and `bet` on your PATH.
+
+### 5. Launch a Pipeline
+
+**fMRI pipeline** -- The fMRI pipeline has its own BIDS conversion step built in (Step 1), so you can either use the shared converter above or let the pipeline handle it. Either way, the pipeline expects raw DICOMs under `data/raw/sub-{id}/` or an existing BIDS dataset under `data/bids/`:
+
+```bash
+python nilearn_RSB_analysis_pipeline/scripts/submit_pipeline.py \
+    --subject 01 --session 1 --config configs/pipeline_config.yaml
+```
+
+**DWI pipeline** -- The DWI pipeline uses its own `ImageTypeChecker` to convert DICOMs into an `mrtrix3_inputs/` folder. Point it at a subject folder containing a `tmp/` directory with raw DICOMs:
+
+```bash
+cd mrtrix3_demon_addon && python run_pipeline.py \
+    subject_name /path/to/subject config.json enhanced_commands_dti.json --human
+```
+
+If you used the shared `DicomToBIDS` converter first, the DWI pipeline will still run its own `ImageTypeChecker` step on the raw data. The shared converter is most useful when you want a standardised BIDS dataset for archival, QC, or feeding into other tools (e.g. fMRIPrep directly).
+
+### Pipeline-Specific Documentation
 
 - **For diffusion data**: See `mrtrix3_demon_addon/README.md`
 - **For fMRI data**: See `nilearn_RSB_analysis_pipeline/README.md`
-- **For pipeline usage**: See `docs/usage_guide.md`
 
 ## Key Features
 
@@ -107,9 +189,7 @@ Computed using NetworkX for consistency:
 
 | Document | Description |
 |----------|-------------|
-| [Usage Guide](docs/usage_guide.md) | Running pipelines and processing data |
 | [Version Control Guide](docs/version_control_guide.md) | Git workflow and dependency management |
-| [Session Notes](docs/session_2026-01-30_initial_exploration.md) | Development history and decisions |
 
 ## Requirements
 
@@ -122,6 +202,10 @@ Computed using NetworkX for consistency:
 ### Optional Dependencies
 - Matplotlib (QC visualization)
 - nilearn (atlas fetching, fMRI processing)
+
+### Preprocessing
+- dcm2niix (DICOM-to-NIfTI conversion, used by `DicomToBIDS`)
+- FSL (brain extraction via `BrainExtractor`, optional)
 
 ### Pipeline-Specific
 - **DWI**: MRtrix3, ANTs, FSL (via Singularity)
