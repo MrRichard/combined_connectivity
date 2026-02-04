@@ -138,19 +138,3 @@ The pipelines use different MNI template spaces:
 | DWI | `mni_icbm152_nlin_sym_09a` | ICBM symmetric |
 
 For cross-modal comparison, use `validation/test_atlas_consistency.py` to verify atlas alignment.
-
-## License
-
-[Add your license here]
-
-## Citation
-
-If you use this pipeline, please cite:
-
-- Fan et al. (2016) for Brainnetome atlas
-- Desikan et al. (2006) for FreeSurfer DK atlas
-- [Your publication here]
-
-## Contact
-
-[Add contact information]
